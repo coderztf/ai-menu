@@ -14,19 +14,8 @@ export MENU_DATABASE="${MENU_DATABASE:-$PWD/db.sqlite3}"
 export MENU_LOG_DIR="${MENU_LOG_DIR:-/opt/ai-menu/logs}"
 mkdir -p "$MENU_LOG_DIR"
 pidfile="$PWD/.server.pid"
-if [[ -f "$pidfile" ]]; then
-  pid="$(cat "$pidfile")"
-  if [[ "$pid" =~ ^[0-9]+$ ]] && kill -0 "$pid" 2>/dev/null; then
-    args="$(ps -p "$pid" -o args=)"
-    [[ "$args" == *"ai_menu.server"* ]] || { echo "PID belongs to another process"; exit 1; }
-    kill "$pid"
-    for _ in {1..30}; do
-      kill -0 "$pid" 2>/dev/null || break
-      sleep 1
-    done
-    kill -0 "$pid" 2>/dev/null && { echo "Old server did not stop"; exit 1; }
-  fi
-fi
+source scripts/process.sh
+stop_previous_server "$pidfile" "$PWD"
 .venv/bin/python -m ai_menu.migrate
 logdate="$(TZ=Asia/Shanghai date +%F)"
 nohup .venv/bin/python -u -m ai_menu.server >>"$MENU_LOG_DIR/$logdate.log" 2>&1 9>&- &
