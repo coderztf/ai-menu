@@ -14,3 +14,8 @@ build/
 dist/
 
 ai-config.yaml
+
+.deploy.lock
+.server.pid
+*.bak
+logs/
