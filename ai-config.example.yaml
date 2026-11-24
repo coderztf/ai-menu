@@ -1,0 +1,11 @@
+# 修改实际配置 ai-config.yaml 后重启后台。环境变量可逐项覆盖。
+ai:
+  url: ""
+  model: ""
+  api_key: ""
+
+# 选填。Kimi 使用完整 Chat Completions 地址，位图模型使用 Images Generations 地址。
+image_ai:
+  url: ""
+  model: ""
+  api_key: ""
