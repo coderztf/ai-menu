@@ -24,7 +24,7 @@ class DailyLog(logging.Handler):
 
 
 if __name__ == "__main__":
-    handler = DailyLog(os.environ.get("MENU_LOG_DIR", "/opt/ai-menu/logs"))
+    handler = DailyLog(os.environ.get("MENU_LOG_DIR", "/opt/logs/ai-menu"))
     handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
     logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
