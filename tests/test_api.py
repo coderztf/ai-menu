@@ -39,6 +39,7 @@ class MenuAPITest(unittest.TestCase):
         with sqlite3.connect(self.database) as conn:
             schema = Path(__file__).resolve().parents[1] / "outputs" / "001_init.sql"
             conn.executescript(schema.read_text())
+            conn.executescript((schema.parents[1] / "migrations" / "0002_archive_ingredient.sql").read_text())
         seed(self.database)
         seed(self.database)
         self.client = self.enterContext(TestClient(create_app(self.database, lambda: self.day,
@@ -141,6 +142,27 @@ class MenuAPITest(unittest.TestCase):
         self.assertEqual(len(self.client.get(self.base + "/ingredients?q=黄瓜").json()["items"]), 1)
         preview = self.client.post(self.base + "/inventory/parse", json={"text": "还剩1根黄瓜"}).json()
         self.assertEqual(preview["items"][0]["ingredient_id"], item["ingredient"]["id"])
+
+    def test_delete_and_restore_ingredient(self):
+        stock = self.stock("番茄很多，生菜充足")
+        item = next(item for item in stock["items"] if item["ingredient"]["code"] == "tomato")
+        ingredient_id = item["ingredient"]["id"]
+        path = self.base + f"/ingredients/{ingredient_id}/delete"
+        key = {"Idempotency-Key": str(uuid4())}
+        body = {"stock_version": stock["stock_version"]}
+        result = self.client.post(path, json=body, headers=key)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertNotIn(ingredient_id, [i["ingredient"]["id"] for i in result.json()["items"]])
+        self.assertEqual(self.client.post(path, json=body, headers=key).json(), result.json())
+        self.assertEqual(self.client.get(self.base + "/ingredients?q=番茄").json()["items"], [])
+        self.assertEqual(self.client.post(path, json=body, headers={"Idempotency-Key": str(uuid4())}).status_code, 409)
+        restored = self.stock("番茄很多，生菜充足")
+        self.assertIn(ingredient_id, [i["ingredient"]["id"] for i in restored["items"]])
+        pork = self.client.get(self.base + "/ingredients?q=猪肉").json()["items"][0]["id"]
+        response = self.client.post(self.base + f"/ingredients/{pork}/delete",
+                                    json={"stock_version": restored["stock_version"]},
+                                    headers={"Idempotency-Key": str(uuid4())})
+        self.assertEqual(response.status_code, 422)
 
     def test_concurrent_intake_and_cooking(self):
         stock = self.stock("番茄很多，生菜充足")

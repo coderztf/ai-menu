@@ -72,7 +72,7 @@ class InventoryService:
             SELECT i.id, i.code, i.name, i.stock_policy, i.food_group,
                    s.state, s.note, s.prioritize, s.updated_at
             FROM ingredient i LEFT JOIN inventory s ON s.ingredient_id=i.id
-            WHERE i.stock_policy='tracked' ORDER BY i.id
+            WHERE i.stock_policy='tracked' AND NOT EXISTS (SELECT 1 FROM archived_ingredient a WHERE a.ingredient_id=i.id) ORDER BY i.id
         """)
         fields = ("id", "code", "name", "stock_policy", "food_group")
         items = [{
@@ -216,6 +216,7 @@ class InventoryService:
                 raise InventoryError("STOCK_VERSION_CONFLICT", stock_version=version)
 
             changes = []
+            restored = False
             resolved = set()
             for item in request["items"]:
                 ingredient_id = item.pop("ingredient_id")
@@ -232,6 +233,7 @@ class InventoryService:
                 """, (ingredient_id,)).fetchone()
                 if existing is None or existing["stock_policy"] != "tracked":
                     raise InventoryError("INVALID_INPUT", ingredient_id=ingredient_id)
+                restored = bool(conn.execute("DELETE FROM archived_ingredient WHERE ingredient_id=?", (ingredient_id,)).rowcount) or restored
                 before = None if existing["state"] is None else {
                     "state": existing["state"], "note": existing["note"],
                     "prioritize": bool(existing["prioritize"]),
@@ -246,7 +248,7 @@ class InventoryService:
                         note=excluded.note, prioritize=excluded.prioritize,
                         updated_at=excluded.updated_at
                 """, (ingredient_id, item["state"], item["note"], item["prioritize"]))
-            if changes:
+            if changes or restored:
                 conn.execute("UPDATE household_state SET stock_version=stock_version+1 WHERE id=1")
             result = self._snapshot(conn)
             conn.execute("""
@@ -258,4 +260,41 @@ class InventoryService:
                 VALUES (?,?,'intake',?,?)
             """, ((request_key, ingredient_id, None if before is None else encode(before), encode(after))
                   for ingredient_id, before, after in changes))
+            return result
+
+    def delete_ingredient(self, ingredient_id, stock_version, request_key):
+        request_key = str(UUID(str(request_key)))
+        operation = f"POST /api/v1/ingredients/{ingredient_id}/delete"
+        digest = sha256(encode({"stock_version": stock_version}).encode()).digest()
+        with self.transaction(write=True) as conn:
+            saved = conn.execute("SELECT * FROM write_request WHERE request_key=?", (request_key,)).fetchone()
+            if saved:
+                if saved["operation"] != operation or saved["payload_hash"] != digest:
+                    raise InventoryError("IDEMPOTENCY_KEY_REUSED")
+                return json.loads(saved["response_json"])
+            if stock_version != self._version(conn):
+                raise InventoryError("STOCK_VERSION_CONFLICT", stock_version=self._version(conn))
+            row = conn.execute("SELECT stock_policy FROM ingredient WHERE id=?", (ingredient_id,)).fetchone()
+            if row is None or row["stock_policy"] != "tracked":
+                raise InventoryError("INVALID_INPUT", field="ingredient_id")
+            changed = conn.execute("INSERT OR IGNORE INTO archived_ingredient(ingredient_id) VALUES (?)",
+                                   (ingredient_id,)).rowcount
+            previous = conn.execute("SELECT state,note,prioritize FROM inventory WHERE ingredient_id=?",
+                                    (ingredient_id,)).fetchone()
+            after = {"state": "empty", "note": None, "prioritize": False}
+            if changed:
+                conn.execute("""
+                    INSERT INTO inventory(ingredient_id,state,note,prioritize) VALUES (?,'empty',NULL,0)
+                    ON CONFLICT(ingredient_id) DO UPDATE SET state='empty',note=NULL,prioritize=0,
+                    updated_at=excluded.updated_at
+                """, (ingredient_id,))
+                conn.execute("UPDATE household_state SET stock_version=stock_version+1 WHERE id=1")
+            result = self._snapshot(conn)
+            conn.execute("INSERT INTO write_request(request_key,operation,payload_hash,http_status,response_json) VALUES (?,?,?,200,?)",
+                         (request_key, operation, digest, encode(result)))
+            if changed:
+                conn.execute("""
+                    INSERT INTO inventory_event(request_key,ingredient_id,source,before_value,after_value)
+                    VALUES (?,?,'intake',?,?)
+                """, (request_key, ingredient_id, encode(dict(previous)) if previous else None, encode(after)))
             return result

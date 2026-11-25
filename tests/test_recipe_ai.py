@@ -50,6 +50,7 @@ class RecipeAITest(unittest.TestCase):
         with closing(sqlite3.connect(database)) as conn:
             schema = Path(__file__).resolve().parents[1] / "outputs" / "001_init.sql"
             conn.executescript(schema.read_text())
+            conn.executescript((schema.parents[1] / "migrations" / "0002_archive_ingredient.sql").read_text())
             tomato = conn.execute("SELECT id FROM ingredient WHERE code='tomato'").fetchone()[0]
         seed(database)
         self.generator = FakeGenerator()

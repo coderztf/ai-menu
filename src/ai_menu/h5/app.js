@@ -256,7 +256,19 @@ function renderStockCards() {
     if (!stockPhotos.has(item.ingredient.name) && !generatedImageIds.has(item.ingredient.id)) {
       details.append(button("AI 生成图片", () => generateIngredientImage(item.ingredient), "secondary image-action"));
     }
-    row.append(thumbnail, details);
+    const deleteButton = button("×", async () => {
+      if (!window.confirm(`确定删除「${item.ingredient.name}」？再次录入可恢复。`)) return;
+      inventory = await api(`/ingredients/${item.ingredient.id}/delete`, {
+        stock_version: inventory.stock_version,
+      });
+      get("preview").replaceChildren();
+      renderInventory();
+      notice("食材已删除。");
+      await refreshMenu();
+    }, "delete-action");
+    deleteButton.setAttribute("aria-label", `删除${item.ingredient.name}`);
+    deleteButton.title = `删除${item.ingredient.name}`;
+    row.append(thumbnail, details, deleteButton);
     list.append(row);
   }
   get("stock-count").textContent = `共 ${matches.length} 项食材`;
