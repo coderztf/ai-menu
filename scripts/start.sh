@@ -4,14 +4,14 @@ cd "$(dirname "$0")/.."
 exec 9>.deploy.lock
 flock -n 9 || { echo "Another deployment is running"; exit 1; }
 test -z "$(git status --porcelain --untracked-files=no)" || { echo "Tracked files have local changes"; exit 1; }
-git fetch origin main
-git checkout main
-git merge --ff-only origin/main
+git fetch origin master
+git checkout master
+git merge --ff-only origin/master
 python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements.txt
 export PYTHONPATH="$PWD/src"
 export MENU_DATABASE="${MENU_DATABASE:-$PWD/db.sqlite3}"
-export MENU_LOG_DIR="${MENU_LOG_DIR:-/opt/ai-menu/logs}"
+export MENU_LOG_DIR="${MENU_LOG_DIR:-/opt/logs/ai-menu}"
 mkdir -p "$MENU_LOG_DIR"
 pidfile="$PWD/.server.pid"
 source scripts/process.sh
