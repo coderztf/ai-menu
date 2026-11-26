@@ -50,6 +50,10 @@ class StockInput(Input):
     prioritize: bool = Field(strict=True)
 
 
+class Deletion(Input):
+    stock_version: Version
+
+
 class StockConfirmation(Input):
     stock_version: Version
     items: list[StockInput] = Field(min_length=1, max_length=50)
@@ -277,9 +281,9 @@ def create_app(database, clock=today, *, schedule=False, recipe_generator=None, 
         with service.transaction() as conn:
             rows = conn.execute("""
                 SELECT i.* FROM ingredient i
-                WHERE ? IS NULL OR instr(i.name, ?) > 0 OR EXISTS (
+                WHERE NOT EXISTS (SELECT 1 FROM archived_ingredient ar WHERE ar.ingredient_id=i.id) AND (? IS NULL OR instr(i.name, ?) > 0 OR EXISTS (
                     SELECT 1 FROM ingredient_alias a WHERE a.ingredient_id=i.id AND instr(a.alias, ?) > 0
-                ) ORDER BY i.id
+                )) ORDER BY i.id
             """, (q, q, q))
             return {"items": [dict(row) for row in rows]}
 
@@ -342,6 +346,10 @@ def create_app(database, clock=today, *, schedule=False, recipe_generator=None, 
         finally:
             image_lock.release()
         return {"ingredient_id": ingredient_id}
+
+    @app.post("/api/v1/ingredients/{ingredient_id}/delete", response_model=Inventory)
+    def delete_ingredient(ingredient_id: Annotated[int, Field(gt=0)], body: Deletion, key: Key):
+        return service.delete_ingredient(ingredient_id, body.stock_version, key)
 
     @app.get("/api/v1/inventory", response_model=Inventory)
     def inventory():

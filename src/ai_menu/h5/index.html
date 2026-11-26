@@ -4,8 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>家庭菜单</title>
-  <link rel="stylesheet" href="/h5/styles.css?v=ingredient-images">
-  <script type="module" src="/h5/app.js?v=ingredient-images"></script>
+  <link rel="stylesheet" href="/h5/styles.css?v=stock-filter-20261126">
+  <script type="module" src="/h5/app.js?v=stock-filter-20261126"></script>
 </head>
 <body>
   <header>
@@ -47,15 +47,19 @@
       </details>
       <div class="stock-filters">
         <label>搜索食材 <input id="stock-search" type="search" placeholder="输入食材名称"></label>
-        <label>库存状态
-          <select id="stock-filter">
-            <option value="all">全部状态</option>
-            <option value="enough">充足</option>
-            <option value="low">少量</option>
-            <option value="empty">用完</option>
-            <option value="unrecorded">未录入</option>
-          </select>
-        </label>
+        <div class="stock-status-control">
+          <span id="stock-filter-label">库存状态</span>
+          <details id="stock-filter" class="status-dropdown">
+            <summary><span id="stock-filter-value">全部状态</span><span class="dropdown-arrow" aria-hidden="true"></span></summary>
+            <fieldset class="status-options" aria-labelledby="stock-filter-label">
+              <label><input type="radio" name="stock-state" value="all" checked><span>全部状态</span></label>
+              <label><input type="radio" name="stock-state" value="enough"><span>充足</span></label>
+              <label><input type="radio" name="stock-state" value="low"><span>少量</span></label>
+              <label><input type="radio" name="stock-state" value="empty"><span>用完</span></label>
+              <label><input type="radio" name="stock-state" value="unrecorded"><span>未录入</span></label>
+            </fieldset>
+          </details>
+        </div>
       </div>
       <p id="stock-count" class="muted" role="status"></p>
       <ul id="inventory" class="stock-list"></ul>

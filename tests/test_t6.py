@@ -33,6 +33,7 @@ class LocalH5Test(unittest.TestCase):
             try:
                 schema = Path(__file__).resolve().parents[1] / "outputs" / "001_init.sql"
                 conn.executescript(schema.read_text())
+                conn.executescript((schema.parents[1] / "migrations" / "0002_archive_ingredient.sql").read_text())
                 ids = dict(conn.execute("SELECT code,id FROM ingredient"))
             finally:
                 conn.close()

@@ -238,7 +238,7 @@ async function generateIngredientImage(item) {
 
 function renderStockCards() {
   const query = get("stock-search").value.trim().normalize("NFKC").toLowerCase();
-  const filter = get("stock-filter").value;
+  const filter = document.querySelector('input[name="stock-state"]:checked').value;
   const matches = inventory.items.filter(({ ingredient, state }) =>
     ingredient.name.normalize("NFKC").toLowerCase().includes(query)
     && (filter === "all" || (state || "unrecorded") === filter));
@@ -256,7 +256,19 @@ function renderStockCards() {
     if (!stockPhotos.has(item.ingredient.name) && !generatedImageIds.has(item.ingredient.id)) {
       details.append(button("AI 生成图片", () => generateIngredientImage(item.ingredient), "secondary image-action"));
     }
-    row.append(thumbnail, details);
+    const deleteButton = button("×", async () => {
+      if (!window.confirm(`确定删除「${item.ingredient.name}」？再次录入可恢复。`)) return;
+      inventory = await api(`/ingredients/${item.ingredient.id}/delete`, {
+        stock_version: inventory.stock_version,
+      });
+      get("preview").replaceChildren();
+      renderInventory();
+      notice("食材已删除。");
+      await refreshMenu();
+    }, "delete-action");
+    deleteButton.setAttribute("aria-label", `删除${item.ingredient.name}`);
+    deleteButton.title = `删除${item.ingredient.name}`;
+    row.append(thumbnail, details, deleteButton);
     list.append(row);
   }
   get("stock-count").textContent = `共 ${matches.length} 项食材`;
@@ -546,7 +558,23 @@ showView();
 window.addEventListener("hashchange", showView);
 
 get("stock-search").addEventListener("input", resetStockFilter);
-get("stock-filter").addEventListener("change", resetStockFilter);
+get("stock-filter").addEventListener("change", (event) => {
+  if (!event.target.matches('input[name="stock-state"]')) return;
+  get("stock-filter-value").textContent = event.target.nextElementSibling.textContent;
+  get("stock-filter").open = false;
+  get("stock-filter").querySelector("summary").focus();
+  resetStockFilter();
+});
+get("stock-filter").addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    get("stock-filter").open = false;
+    get("stock-filter").querySelector("summary").focus();
+  }
+});
+document.addEventListener("click", (event) => {
+  const dropdown = get("stock-filter");
+  if (!dropdown.contains(event.target)) dropdown.open = false;
+});
 get("stock-more").addEventListener("click", () => {
   stockLimit += stockPageSize;
   if (inventory) renderStockCards();
