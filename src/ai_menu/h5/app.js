@@ -238,7 +238,7 @@ async function generateIngredientImage(item) {
 
 function renderStockCards() {
   const query = get("stock-search").value.trim().normalize("NFKC").toLowerCase();
-  const filter = get("stock-filter").value;
+  const filter = document.querySelector('input[name="stock-state"]:checked').value;
   const matches = inventory.items.filter(({ ingredient, state }) =>
     ingredient.name.normalize("NFKC").toLowerCase().includes(query)
     && (filter === "all" || (state || "unrecorded") === filter));
@@ -558,7 +558,23 @@ showView();
 window.addEventListener("hashchange", showView);
 
 get("stock-search").addEventListener("input", resetStockFilter);
-get("stock-filter").addEventListener("change", resetStockFilter);
+get("stock-filter").addEventListener("change", (event) => {
+  if (!event.target.matches('input[name="stock-state"]')) return;
+  get("stock-filter-value").textContent = event.target.nextElementSibling.textContent;
+  get("stock-filter").open = false;
+  get("stock-filter").querySelector("summary").focus();
+  resetStockFilter();
+});
+get("stock-filter").addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    get("stock-filter").open = false;
+    get("stock-filter").querySelector("summary").focus();
+  }
+});
+document.addEventListener("click", (event) => {
+  const dropdown = get("stock-filter");
+  if (!dropdown.contains(event.target)) dropdown.open = false;
+});
 get("stock-more").addEventListener("click", () => {
   stockLimit += stockPageSize;
   if (inventory) renderStockCards();
